@@ -1,0 +1,45 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - main # main 브랜치에 푸시될 때 워크플로우 실행
+
+env:
+  DOCKER_IMAGE_NAME: your-dockerhub-username/dmm-cover-watcher # <--- Docker Hub 사용자 이름과 이미지 이름으로 변경
+  DOCKER_REGISTRY: docker.io # Docker Hub 레지스트리
+
+jobs:
+  build_and_push:
+    runs-on: ubuntu-latest # 최신 Ubuntu 환경에서 실행
+
+    steps:
+    - name: Checkout Code # GitHub 리포지토리 코드 가져오기
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx # Buildx 설정 (다중 아키텍처 빌드 및 캐싱에 유용)
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub # Docker Hub에 로그인
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }} # GitHub Secrets에 저장된 Docker Hub 사용자 이름
+        password: ${{ secrets.DOCKER_PASSWORD }} # GitHub Secrets에 저장된 Docker Hub 비밀번호 (또는 액세스 토큰)
+
+    - name: Get current date for image tag # 이미지 태그를 위한 현재 날짜 가져오기 (예: 20240720)
+      id: date
+      run: echo "::set-output name=date::$(date +'%Y%m%d')"
+
+    - name: Build and Push Docker image # Docker 이미지 빌드 및 푸시
+      uses: docker/build-push-action@v5
+      with:
+        context: . # Dockerfile이 있는 경로 (현재 디렉토리)
+        push: true # Docker Hub로 푸시
+        tags: | # 이미지 태그 설정 (예: your-username/dmm-cover-watcher:latest, your-username/dmm-cover-watcher:20240720)
+          ${{ env.DOCKER_IMAGE_NAME }}:latest
+          ${{ env.DOCKER_IMAGE_NAME }}:${{ steps.date.outputs.date }}
+        cache-from: type=gha # GitHub Actions 캐시 사용 (빌드 속도 향상)
+        cache-to: type=gha,mode=max
+
+    - name: Verify image push # 이미지 푸시 확인 (선택 사항)
+      run: echo "Docker image ${{ env.DOCKER_IMAGE_NAME }}:latest and :${{ steps.date.outputs.date }} pushed to Docker Hub."
